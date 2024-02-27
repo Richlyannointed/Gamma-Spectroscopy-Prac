@@ -78,6 +78,7 @@ def display_spectrum(data:np.ndarray, source_name: str, yscale='linear'):
 def peak_finder(data: np.ndarray) -> list:
     """
     Returns indices of peak positions
+    NB! indices are w.r.t. the passed `data` array.
     """
     peaks, _ = find_peaks(data, width=10)
     return peaks
@@ -123,24 +124,28 @@ def gaussian_fit(data: np.ndarray, peak_range: tuple) -> tuple:
         return None, None
     
 
-def show_fit(data: np.ndarray, peak_range: tuple, source_name: str):
+def show_fits(data: np.ndarray, fit_params_dict: dict,  source_name: str) -> None:
+    """
+    Returns spectrum plot with fits of all found peaks    
     
-    #peaks = peak_finder(data[:,1])
-    popt, pcov = gaussian_fit(data)
-    print(popt)
-    
-    #Best Fit
-    x = data[:,0]
-    y_fit = gauss(x, *popt)
-    
+    fit_dict : dictionary of Gaussian fit parameters w.r.t. `data` axes
+    """
     fig, ax = plt.subplots(1, figsize=(9, 5))
-    ax.plot(x, y_fit, '--r', label='best fit')
-    ax.scatter(x=x, y=data[:,1], marker='.', alpha=0.4, color='black', label='Source Spectrum')
-    #ax.vlines(peaks, ymin=0, ymax=max(data[:,1]), color='red', linestyle='--')
+    ax.scatter(x=data[:,0], y=data[:,1], marker='^', alpha=0.4, color='cyan', label='Source Spectrum')
+    for peak_name, fit_params in fit_params_dict.items():
+        # Generate y values for the best-fit Gaussian curve
+        y_fit = gauss(data[:, 0], *fit_params)
+
+        # Plot the best-fit Gaussian curve for the current peak
+        ax.plot(data[:, 0], y_fit, alpha=0.6, label=f'{peak_name} Fit')
+
+    
     ax.set(title=f'Spectrum of {source_name.upper()}',
            xlabel='Channel No.',
+           ylabel='Count Rate [Counts/sec]',
            yscale='linear')
-    plt.show(block=False)    
+    plt.legend()
+    plt.show(block=True)    
 
 
 def main():
@@ -153,9 +158,16 @@ def main():
     #display_spectrum(spec, source_name, 'log')
     ranges = find_peak_ranges(spec)
     print(find_peak_ranges(spec))
+    
+    # VISUALLY INSPECT GAUSSIAN FITS
+    fit_params_dict = {}
+    for i, peak_range in enumerate(ranges):
+        peak_name = f'Peak_{i+1}' 
+        fit_params, _ = gaussian_fit(spec, peak_range)
+        if fit_params is not None:
+            fit_params_dict[peak_name] = fit_params
 
-    for peak_range in ranges:
-        show_fit(spec, peak_range, source_name)
+    show_fits(spec, fit_params_dict, source_name)
     
     
 
