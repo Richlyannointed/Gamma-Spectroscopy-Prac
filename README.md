@@ -11,7 +11,7 @@ Welcome to the Gamma Spectroscopy Practical Toolkit! This toolkit provides a set
 
 ## Usage
 
-1. **Installation:** Clone this repository to your local machine.
+1. **Installation:** Download the `gaussian_fit.py` file or clone this repository to your local machine.
 
    ```bash
    git clone https://github.com/yourusername/Gamma-Spectroscopy-Prac.git
