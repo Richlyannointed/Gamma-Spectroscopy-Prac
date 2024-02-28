@@ -20,16 +20,14 @@ Welcome to the Gamma Spectroscopy Practical Toolkit! This toolkit provides a set
    ```bash
    pip install -r requirements.txt
 
-3. **Data Preparation** Prepare your energy spectra data in CSV format. Ensure that the data includes channel numbers and corresponding intensity values.
+3. **Data Preparation** Prepare your energy spectra data in CSV format. Save the USX file as a csv in the application.
     
-4. **Analysis** Use the provided Python scripts to analyze your data.
-    ```bash
-   python gaussian_fit.py source_spectrum.csv
-      
+4. **Analysis** Copy `gaussian_fit.py` and change `source_filename` 
+   
 6. **Visualisation** Visualize the analyzed spectra and Gaussian fits using the generated plots.
 
 ## Contributing
-Contributions to the Gamma Spectroscopy Practical Toolkit are welcome! If you have any ideas, suggestions, or improvements, please feel free to open an issue or submit a pull request on GitHub.
+Contributions to the Gamma Spectroscopy Practical Toolkit are welcome! If you have any suggestions, or improvements, please feel free to open an issue or submit a pull request on GitHub.
 
 ## Acknowledgments
 - This toolkit was developed as part of the Gamma Spectroscopy Practical at the University of Cape Town.
