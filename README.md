@@ -24,7 +24,7 @@ Welcome to the Gamma Spectroscopy Practical Toolkit! This toolkit provides a set
     
 4. **Analysis** Use the provided Python scripts to analyze your data.
     ```bash
-   python analyze_spectrum.py your_spectrum.csv
+   python gaussian_fit.py source_spectrum.csv
       
 6. **Visualisation** Visualize the analyzed spectra and Gaussian fits using the generated plots.
 
