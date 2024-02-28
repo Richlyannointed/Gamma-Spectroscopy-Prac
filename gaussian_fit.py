@@ -11,10 +11,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 
-#CONSTANTS
-avg_peak_width = 35 #Average width of energy peaks [in channels]
 
-def import_data(filename: str) -> np.ndarray:
+def import_data(filename: str) -> tuple:
+    """
+    Returns tuple of data array and elapsed time in [s]
+    """
+    elapsed_time = extract_elapsed_live_time(filename) # For count rate conversion
+    if elapsed_time is None:
+        return None
+    
     skip_rows = 22 # USX Header
     data = []
     with open(filename, 'r') as file:
@@ -23,17 +28,33 @@ def import_data(filename: str) -> np.ndarray:
             next(csv_reader)  # Skip rows
         for row in csv_reader:
         # Skip the middle column (assuming the array has 3 columns)
-            filtered_row = [row[0], row[2]]  # Keep first and third column, skip the middle one
-            data.append(filtered_row)
-
+            channel = float(row[0]) if row[0] else None
+            counts = float(row[2]) / elapsed_time if row[2] else None  
+            data.append((channel, counts))
+        
     # Convert list to NumPy array
     try:
         numpy_array = np.array(data).astype(float)
     except TypeError:
         print('Failed to cast data to float')
         return None
-    return numpy_array
+    return numpy_array, elapsed_time
 
+
+def extract_elapsed_live_time(filename):
+    with open(filename, 'r') as file:
+        csv_reader = csv.reader(file)
+
+        # Skip rows until 'Calibration Coefficients' is reached
+        for row in csv_reader:
+            if 'Elapsed Live Time:' in row[0]:
+                try:
+                    elapsed_live_time = float(row[1])
+                except ValueError:
+                    print(f'Could not convert {row[1]} to float')
+                    return 1
+
+                return elapsed_live_time
 
 
 def display_spectrum(data:np.ndarray, source_name: str, yscale='linear'):
@@ -48,34 +69,8 @@ def display_spectrum(data:np.ndarray, source_name: str, yscale='linear'):
            yscale=yscale)
     plt.show(block=False)
 
-    """
-    # Ask user for input
-    while True:
-        plt.show(block=False)  # Show the plot
-        start = input("Enter the start index of the data range (or 'exit' to close the plot): ")
-        if start.lower() == 'exit':
-            plt.close()  # Close the plot window
-            break
-        end = input("Enter the end index of the data range: ")
-        
-        # Validate input
-        try:
-            start = int(start)
-            end = int(end)
-            if start < 0 or end < 0 or end <= start or end >= len(x):
-                print("Invalid input. Please try again.")
-            else:
-                plt.plot(x[start:end+1], y[start:end+1])  # Plot the selected range
-                plt.xlabel('X-axis')
-                plt.ylabel('Y-axis')
-                plt.title('Selected Range')
-                plt.show()  # Show the selected range plot
-                break
-        except ValueError:
-            print("Invalid input. Please enter integers only.")
-    """
 
-def peak_finder(data: np.ndarray) -> list:
+def peak_finder(data: np.ndarray) -> np.ndarray:
     """
     Returns indices of peak positions
     NB! indices are w.r.t. the passed `data` array.
@@ -84,15 +79,15 @@ def peak_finder(data: np.ndarray) -> list:
     return peaks
 
 
-def find_peak_ranges(data: np.ndarray) -> tuple:
+def find_peak_ranges(data: np.ndarray) -> list:
     """
-
+    Returns tuple of peak ranges based on `CONSTANT`: avg_peak_width
     """
     
     peaks = peak_finder(data[:,1])
     ranges = []
     for peak in peaks:
-        ranges.append([peak - avg_peak_width, peak + avg_peak_width])
+        ranges.append((peak - avg_peak_width, peak + avg_peak_width))
     return ranges
 
 
@@ -103,6 +98,7 @@ def gauss(x, A, mu, sigma, C) -> float:
 def gaussian_fit(data: np.ndarray, peak_range: tuple) -> tuple:
     """
     Fit a Gaussian function to the data within the specified peak_range.
+    TODO: return standard uncertainties with or without chi^2/dof correction
     """
     #Optimisation
 
@@ -131,46 +127,80 @@ def show_fits(data: np.ndarray, fit_params_dict: dict,  source_name: str) -> Non
     fit_dict : dictionary of Gaussian fit parameters w.r.t. `data` axes
     """
     fig, ax = plt.subplots(1, figsize=(9, 5))
-    ax.scatter(x=data[:,0], y=data[:,1], marker='^', alpha=0.4, color='cyan', label='Source Spectrum')
+    ax.scatter(x=data[:,0], y=data[:,1], marker='.', alpha=0.2, color='black', label='Source Spectrum')
     for peak_name, fit_params in fit_params_dict.items():
+        A = fit_params['A']
+        mean = fit_params['mu']
+        sigma = fit_params['sigma']
+        C = fit_params['C']
+
+        # Generate x values within the range of the data
+        x_range = np.linspace(mean - sigma*6 , mean + sigma*6, 1000)
+
         # Generate y values for the best-fit Gaussian curve
-        y_fit = gauss(data[:, 0], *fit_params)
+        y_fit = gauss(x_range, A, mean, sigma, C)
 
         # Plot the best-fit Gaussian curve for the current peak
-        ax.plot(data[:, 0], y_fit, alpha=0.6, label=f'{peak_name} Fit')
+        ax.plot(x_range, y_fit, alpha=1, label=f'{peak_name} Fit')
         
-# are my commits even there?
     
-    ax.set(title=f'Spectrum of {source_name.upper()}',
+    ax.set(title=f'Log Scale Spectrum of {source_name.upper()}',
            xlabel='Channel No.',
            ylabel='Count Rate [Counts/sec]',
-           yscale='linear')
+           yscale='log')
     plt.legend()
     plt.show(block=True)    
 
 
-def main():
-    source_filename = 'Cs137.csv'
-    source_name = source_filename.strip('.csv')
-    spec = import_data(source_filename)
-    sigma = np.ones_like(spec[:,1]) * (1 / np.sqrt(spec[:,1]))
-    spec = np.column_stack((spec, sigma))
+def include_uncertainty(data: np.ndarray) -> np.ndarray:
+    sigma = np.ones_like(data[:,1]) * (1 / np.sqrt(data[:,1]))
+    return np.column_stack((data, sigma))
 
-    #display_spectrum(spec, source_name, 'log')
+
+def write_fit_params_to_csv(fit_params_dict, elapsed_time, source_name, output_filename):
+    # Extract parameter names from the first fit_params entry
+    param_names = list(fit_params_dict.values())[0].keys()
+
+    # Write header to CSV file
+    with open(output_filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        header = ['Elapsed Time', 'Source Name'] + list(param_names)
+        writer.writerow(header)
+
+        # Write data rows
+        for peak_name, fit_params in fit_params_dict.items():
+            row = [elapsed_time, source_name] + [fit_params[param] for param in param_names]
+            writer.writerow(row)
+
+
+#CONSTANTS | Change as necessary
+avg_peak_width = 30 #Average width of energy peaks [in channels] 
+
+def main():
+    # USAGE: Change `source_filename` to your source and run file.
+    # OUTPUT: .csv of fit parameters and (TODO) fit uncertainties
+    source_filename = 'Cd109.csv'
+
+    source_name = source_filename.strip('.csv')
+    spec, elapsed_time = import_data(source_filename)
+
+    # GET PEAK RANGES BASED ON AVERAGE PEAK WIDTH
     ranges = find_peak_ranges(spec)
-    print(find_peak_ranges(spec))
     
-    # VISUALLY INSPECT GAUSSIAN FITS
+    # CREATE FIT PARAMETER DICTIONARY FOR EACH PEAK
     fit_params_dict = {}
     for i, peak_range in enumerate(ranges):
         peak_name = f'Peak_{i+1}' 
         fit_params, _ = gaussian_fit(spec, peak_range)
         if fit_params is not None:
-            fit_params_dict[peak_name] = fit_params
+            fit_params_dict[peak_name] = {'A' : fit_params[0], 
+                                          'mu' : fit_params[1], 
+                                          'sigma' : fit_params[2],
+                                          'C' : fit_params[3]}
 
     show_fits(spec, fit_params_dict, source_name)
+    write_fit_params_to_csv(fit_params_dict, elapsed_time, source_name, source_name + '_fit.csv')
     
     
-
 if __name__ =='__main__':
     main()
