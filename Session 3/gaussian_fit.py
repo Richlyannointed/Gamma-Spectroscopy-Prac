@@ -2,6 +2,7 @@
 It does the fit
 for the Gauss
 Give it Data
+FIND MAIN
 
 """
 
@@ -147,7 +148,7 @@ def show_fits(data: np.ndarray, fit_params_dict: dict,  source_name: str) -> Non
     ax.set(title=f'Log Scale Spectrum of {source_name.upper()}',
            xlabel='Channel No.',
            ylabel='Count Rate [Counts/sec]',
-           yscale='linear')
+           yscale='log')
     plt.legend()
     plt.show(block=True)    
 
@@ -179,7 +180,7 @@ avg_peak_width = 30 #Average width of energy peaks [in channels]
 def main():
     # USAGE: Change `source_filename` to your source and run file.
     # OUTPUT: .csv of fit parameters and (TODO) fit uncertainties
-    source_filename = 'Co60.csv'
+    source_filename = 'Cs137.csv'
 
     source_name = source_filename.strip('.csv')
     spec, elapsed_time = import_data(source_filename)
